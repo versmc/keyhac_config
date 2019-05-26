@@ -6,67 +6,61 @@ import pyauto
 from keyhac import *
 
 """
+settings of keyhac
+
 keyhac の設定ファイル
+
+問題点
+1. 特に致命的なものは確認していない
+2. キーボードマクロの動作で time inversion のメッセージが出る
+3. とりあえずオブジェクティブなコードにしたが、密結合なのでなんとかしたい
+4. IME の設定とか無変換キーを使った設定とかあるので日本語でいいのではないか
 """
 
+"""
+This is a class to control the dynamic keymap mode.
+This class is a static class.
+The Static member "flag_window" contains the dynamic mode status.
+"""
+class WindowmodeManager:
+    window_limited=0
+    window_cursor=1
+    window_test=2
+    flag_window=window_limited  # keymap mode flag
+
+    @classmethod
+    def set_window_limited(cls):
+        cls.flag_window=cls.window_limited
+    
+    @classmethod
+    def set_window_cursor(cls):
+        cls.flag_window=cls.window_cursor
+
+    @classmethod
+    def set_window_test(cls):
+        cls.flag_window=cls.window_test
+
+
+    @classmethod
+    def window_is_limited(cls,window):
+        return cls.flag_window==cls.window_limited
+
+    @classmethod
+    def window_is_cursor(cls,window):
+        return cls.flag_window==cls.window_cursor
+    
+    @classmethod
+    def window_is_emacs(cls,window):
+        return window.getText().find("emacs")==0
+
+    @classmethod
+    def window_is_test(cls,window):
+        return cls.flag_window==cls.window_test
+
 
 """
-
-動的キーマップの実現の方針
-
-WindowKeymap の生成関数
-
-keymap.defineWindowKeymap	(
-  exe_name = None,
-  class_name = None,
-  window_text = None,
-  check_func = None 
-)
-
-において
-check_func の引数を偽装することにより動的キー割り当てを実現する
-また keymap.updateKeyMap() により Window を再評価し、切り替える
-
-"""
-
-# モードの種類 flag_window に代入し check_func 引数になる
-window_limited=0
-window_cursor=1
-
-# check_func 引数，初期状態 : window_limited
-flag_window=window_limited
-
-
-def set_window_limited():
-    global flag_window
-    flag_window=window_limited
-
-def set_window_cursor():
-    global flag_window
-    flag_window=window_cursor
-
-
-def window_is_limited(window):
-    if flag_window==window_limited:
-        return True
-    else:
-        return False
-
-def window_is_cursor(window):
-    if flag_window==window_cursor:
-        return True
-    else:
-        return False
-        
-def window_is_emacs(window):
-    if window.getText().find("emacs")==0:
-        return True
-    else:
-        return False
-
-"""
-キーボードマクロの定義用のクラス用
-keymap を保持し、インスタンス化する
+This is a class to define keyboard macros.
+Under trial stage
 """
 class MyMacro:
 
@@ -109,131 +103,189 @@ class MyMacro:
     
     """
     def abcde_delay(self):
-        self.keymap.delayedCall(self.delay_test_raw,0)
-
-
+        self.keymap.delayedCall(self.abcde_raw,0)
 
 
 """
-自分用設定
-デフォルトの configure(keymap) の内容をあまり壊したくないのでここに飛ばす
+This is a class to set settings of keymap
+
+This class has the reference of keymap class
 """
+class KeymapManager:
+    
+    """
+    construct keymap manager
+    """
+    def __init__(self,keymap_):
+        self.keymap=keymap_
+    
+        # define modifier
+        self.keymap.defineModifier(29,"User1")       #assign "muhenkan" "User1"
+        self.keymap.defineModifier("Slash","User2")  #assign "/" "User2"
+
+        # define dynamic keymap
+        self.keymap_global=self.make_keymap_global()
+        self.keymap_limited=self.make_keymap_limited()
+        self.keymap_cursor=self.make_keymap_cursor()
+        self.keymap_emacs=self.make_keymap_emacs()
+        self.keymap_test=self.make_keymap_test()
+
+    
+    # functions to switch mode using self.keymap and WindowmodeManager
+
+    # IME ON
+    def set_ime_on(self):
+        self.keymap.wnd.setImeStatus(1)
+    
+    # IME OFF
+    def set_ime_off(self):
+        self.keymap.wnd.setImeStatus(0)
+    
+    # change keymap mode to keymap_limited
+    def set_keymap_limited(self):
+        WindowmodeManager.set_window_limited()
+        self.keymap.updateKeymap()
+
+    # change keymap mode to keymap_cursor
+    def set_keymap_cursor(self):
+        WindowmodeManager.set_window_cursor()
+        self.keymap.updateKeymap()
+
+    # change keymap mode to keymap_test
+    def set_keymap_test(self):
+        WindowmodeManager.set_window_test()
+        self.keymap.updateKeymap()
+
+
+    def set_keymap_limited_and_ime_on(self):
+        self.set_keymap_limited()
+        self.set_ime_on()
+
+    def set_keymap_limited_and_ime_off(self):
+        self.set_keymap_limited()
+        self.set_ime_off()
+
+    """
+    define functions to generate some keymap mode
+    """
+
+    """
+    settings of global keymap. no change.
+    """
+    def make_keymap_global(self):
+        return self.keymap.defineWindowKeymap()
+
+
+
+    """
+    settings of limited mode
+    """
+    def make_keymap_limited(self):
+        keymap_limited = self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_limited)
+        
+        # settings to change mode
+        keymap_limited["U1-c"]=self.set_keymap_cursor    # muhenkan - c
+        keymap_limited["U1-t"]=self.set_keymap_test      # muhenkan - t
+
+        # settings of some shortcuts
+        keymap_limited["A-z"]="A-Tab"
+        keymap_limited["A-S-z"]="A-S-Tab"
+        keymap_limited["RC-j"]="Enter"
+        keymap_limited["RC-h"]="Back"
+        keymap_limited["RC-d"]="Delete"
+        for any in ("", "S-", "C-", "C-S-", "A-", "A-S-", "A-C-", "A-C-S-", "W-", "W-S-", "W-C-", "W-C-S-", "W-A-", "W-A-S-", "W-A-C-", "W-A-C-S-"):
+            keymap_limited[any+"O-Slash"]=any+"Slash"
+            keymap_limited[any+"U1-i"]=any+"Up"
+            keymap_limited[any+"U1-j"]=any+"Left"
+            keymap_limited[any+"U1-k"]=any+"Down"
+            keymap_limited[any+"U1-l"]=any+"Right"
+            keymap_limited[any+"U1-u"]=any+"PageUp"
+            keymap_limited[any+"U1-h"]=any+"Home"
+            keymap_limited[any+"U1-o"]=any+"PageDown"
+            keymap_limited[any+"U1-Semicolon"]=any+"End"
+            keymap_limited[any+"U1-n"]=any+"Enter"
+            keymap_limited[any+"U1-m"]=any+"Tab"
+        
+        return keymap_limited
+                
+    def make_keymap_cursor(self):
+        keymap_cursor = self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_cursor)
+
+        # settings of keymap_cursor
+        # カーソルモード ijkl による移動などが楽になる 最近あまり使わない
+        keymap_cursor["S-(241)"]=self.set_keymap_limited_and_ime_on  #Shift - katakana/hiragana/romaji
+        keymap_cursor["S-(28)"]=self.set_keymap_limited_and_ime_off  #Shift - henkan
+        keymap_cursor["(28)"]=self.set_keymap_limited                #henkan
+        keymap_cursor["Alt-X"]="Alt-Tab"
+        keymap_cursor["x"]="Delete"
+        keymap_cursor["S-x"]="Back"
+        keymap_cursor["h"]="Back"
+        keymap_cursor["w"]="C-Tab"
+        keymap_cursor["q"]="C-S-Tab"
+        keymap_cursor["O-f"]="LButton"
+        keymap_cursor["O-g"]="RButton"
+        
+        for any in ("", "S-", "C-", "C-S-", "A-", "A-S-", "A-C-", "A-C-S-", "W-", "W-S-", "W-C-", "W-C-S-", "W-A-", "W-A-S-", "W-A-C-", "W-A-C-S-"):
+            keymap_cursor[any+"j"]=any+"Left"
+            keymap_cursor[any+"k"]=any+"Down"
+            keymap_cursor[any+"i"]=any+"Up"
+            keymap_cursor[any+"l"]=any+"Right"
+            keymap_cursor[any+"j"]=any+"Left"
+            keymap_cursor[any+"k"]=any+"Down" 
+            keymap_cursor[any+"i"]=any+"Up"
+            keymap_cursor[any+"l"]=any+"Right"
+            keymap_cursor[any+"u"]=any+"Home"
+            keymap_cursor[any+"o"]=any+"End"
+            keymap_cursor[any+"U2-j"]=any+"Home"
+            keymap_cursor[any+"U2-k"]=any+"PageDown"
+            keymap_cursor[any+"U2-i"]=any+"PageUp"
+            keymap_cursor[any+"U2-l"]=any+"End"
+            keymap_cursor[any+"n"]=any+"Enter"
+            keymap_cursor[any+"m"]=any+"Tab"
+        
+        return keymap_cursor
+        
+    def make_keymap_emacs(self):
+        # settings of keymap_emacs
+        # emacs においても windows のキーバインドで操作するための設定
+        # emacs において LCtrl によるコマンドを windows のもので置き換える
+        # 現在、レジストリによって CapsLock を RCtrl に変えているため CapsLock により emacs におけるコマンドの Ctrl を代用する
+        # 代わりに LCtrl による操作では windows のコマンドをエミュレートする
+        
+        keymap_emacs=self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_emacs)
+
+        keymap_emacs["LC-a"]="C-x","h"          # select all
+        keymap_emacs["LC-c"]="A-w"              # copy to clipboard
+        keymap_emacs["LC-f"]="C-s"              # find
+        keymap_emacs["LC-h"]="A-S-5"            # replace
+        keymap_emacs["LC-s"]="C-x","C-s"        # save
+        keymap_emacs["LC-v"]="C-y"              # paste
+        keymap_emacs["LC-x"]="C-w"              # cut
+        keymap_emacs["LC-z"]="C-x","u"          # undo (redo は emacs では undo で代用する)
+
+        return keymap_emacs
+
+    def make_keymap_test(self):
+        keymap_test=self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_test)
+
+        keymap_test["S-(241)"]=self.set_keymap_limited_and_ime_on  #Shift - katakana/hiragana/romaji
+        keymap_test["S-(28)"]=self.set_keymap_limited_and_ime_off  #Shift - henkan
+        keymap_test["(28)"]=self.set_keymap_limited                #henkan
+        
+        # マクロテスト
+        if 1:            
+            my_macro=MyMacro(self.keymap)
+            keymap_test["U1-q"]=my_macro.abcde_delay  # 意図したとおり動くが time stamp inversion のメッセージが出る
+            # keymap_limited["U1-p"]=my_macro.abcde_raw  # 意図したとおり動かない
+        return keymap_test
+
+
+
+
+
+
 def my_configure(keymap):
-
-    # IME ON/OFF
-    def set_ime_on():
-        keymap.wnd.setImeStatus(1)
-    
-    def set_ime_off():
-        keymap.wnd.setImeStatus(0)
-    
-    
-    # mode switch 
-    def set_keymap_limited():
-        set_window_limited()
-        keymap.updateKeymap()
-
-    def set_keymap_cursor():
-        set_window_cursor()
-        keymap.updateKeymap()
-
-    # mode switch and ime switch
-    def set_keymap_limited_and_ime_on():
-        set_keymap_limited()
-        set_ime_on()
-
-    def set_keymap_limited_and_ime_off():
-        set_keymap_limited()
-        set_ime_off()
-        
-    # define modifier
-    keymap.defineModifier(29,"User1")       #assign "muhenkan" "User1"
-    keymap.defineModifier("Slash","User2")  #assign "/" "User2"
-
-    # define dynamical keymap
-    keymap_global=keymap.defineWindowKeymap()
-    keymap_limited = keymap.defineWindowKeymap(check_func=window_is_limited)
-    keymap_cursor = keymap.defineWindowKeymap(check_func=window_is_cursor)
-    keymap_emacs=keymap.defineWindowKeymap(check_func=window_is_emacs)
-
-    # settings of keymap_global
-    
-    # settings of keymap_limited
-    # keyhac 起動時のデフォルトモードでの設定
-    keymap_limited["U1-c"]=set_keymap_cursor    # muhenkan
-    keymap_limited["A-z"]="A-Tab"
-    keymap_limited["A-S-z"]="A-S-Tab"
-    keymap_limited["RC-j"]="Enter"
-    keymap_limited["RC-h"]="Back"
-    keymap_limited["RC-d"]="Delete"
-    for any in ("", "S-", "C-", "C-S-", "A-", "A-S-", "A-C-", "A-C-S-", "W-", "W-S-", "W-C-", "W-C-S-", "W-A-", "W-A-S-", "W-A-C-", "W-A-C-S-"):
-        keymap_limited[any+"O-Slash"]=any+"Slash"
-        keymap_limited[any+"U1-i"]=any+"Up"
-        keymap_limited[any+"U1-j"]=any+"Left"
-        keymap_limited[any+"U1-k"]=any+"Down"
-        keymap_limited[any+"U1-l"]=any+"Right"
-        keymap_limited[any+"U1-u"]=any+"PageUp"
-        keymap_limited[any+"U1-h"]=any+"Home"
-        keymap_limited[any+"U1-o"]=any+"PageDown"
-        keymap_limited[any+"U1-Semicolon"]=any+"End"
-        keymap_limited[any+"U1-n"]=any+"Enter"
-        keymap_limited[any+"U1-m"]=any+"Tab"
-    
-
-    # マクロテスト
-    if 0:
-        
-        my_macro=MyMacro(keymap)
-        keymap_limited["U1-q"]=my_macro.abcde_delay        # 意図したとおり動くが time stamp inversion のメッセージが出る
-        # keymap_limited["U1-p"]=my_macro.abcde_raw  # 意図したとおり動かない
-
-
-    # settings of keymap_cursor
-    # カーソルモード ijkl による移動などが楽になる 最近あまり使わない
-    keymap_cursor["S-(241)"]=set_keymap_limited_and_ime_on  #Shift - katakana/hiragana/romaji
-    keymap_cursor["S-(28)"]=set_keymap_limited_and_ime_off  #Shift - henkan
-    keymap_cursor["(28)"]=set_keymap_limited                #henkan
-    keymap_cursor["Alt-X"]="Alt-Tab"
-    keymap_cursor["x"]="Delete"
-    keymap_cursor["S-x"]="Back"
-    keymap_cursor["h"]="Back"
-    keymap_cursor["w"]="C-Tab"
-    keymap_cursor["q"]="C-S-Tab"
-    keymap_cursor["O-f"]="LButton"
-    keymap_cursor["O-g"]="RButton"
-    
-    for any in ("", "S-", "C-", "C-S-", "A-", "A-S-", "A-C-", "A-C-S-", "W-", "W-S-", "W-C-", "W-C-S-", "W-A-", "W-A-S-", "W-A-C-", "W-A-C-S-"):
-        keymap_cursor[any+"j"]=any+"Left"
-        keymap_cursor[any+"k"]=any+"Down"
-        keymap_cursor[any+"i"]=any+"Up"
-        keymap_cursor[any+"l"]=any+"Right"
-        keymap_cursor[any+"j"]=any+"Left"
-        keymap_cursor[any+"k"]=any+"Down" 
-        keymap_cursor[any+"i"]=any+"Up"
-        keymap_cursor[any+"l"]=any+"Right"
-        keymap_cursor[any+"u"]=any+"Home"
-        keymap_cursor[any+"o"]=any+"End"
-        keymap_cursor[any+"U2-j"]=any+"Home"
-        keymap_cursor[any+"U2-k"]=any+"PageDown"
-        keymap_cursor[any+"U2-i"]=any+"PageUp"
-        keymap_cursor[any+"U2-l"]=any+"End"
-        keymap_cursor[any+"n"]=any+"Enter"
-        keymap_cursor[any+"m"]=any+"Tab"
-    
-
-    # settings of keymap_emacs
-    # emacs においても windows のキーバインドで操作するための設定
-    # emacs において LCtrl によるコマンドを windows のもので置き換える
-    # 現在、レジストリによって CapsLock を RCtrl に変えているため CapsLock により emacs におけるコマンドの Ctrl を代用する
-    # 代わりに LCtrl による操作では windows のコマンドをエミュレートする
-    keymap_emacs["LC-a"]="C-x","h"          # select all
-    keymap_emacs["LC-c"]="A-w"              # copy to clipboard
-    keymap_emacs["LC-f"]="C-s"              # find
-    keymap_emacs["LC-h"]="A-S-5"            # replace
-    keymap_emacs["LC-s"]="C-x","C-s"        # save
-    keymap_emacs["LC-v"]="C-y"              # paste
-    keymap_emacs["LC-x"]="C-w"              # cut
-    keymap_emacs["LC-z"]="C-x","u"          # undo (redo は emacs では undo で代用する)
+    keymapmanager=KeymapManager(keymap)
 
 
 
