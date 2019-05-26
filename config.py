@@ -17,7 +17,7 @@ keyhac の設定ファイル
 
 """
 動的なキーマップを制御するためのクラス
-keymap.defineWindowKeymap(...) の引数 check_func を偽装することにより動的キーマップを実現する
+keymap.defineWindowKeymap(...) の引数 check_func を適当に設定することにより動的キーマップを実現する
 本クラスは静的クラスである
 本クラスは静的メンバ flag_window により動的なキーマップモードを保持している
 """
@@ -279,13 +279,19 @@ class KeymapManager:
 
 
 
-
+"""
+自分用の設定
+"""
 def my_configure(keymap):
     keymapmanager=KeymapManager(keymap)
 
 
 
-
+"""
+設定
+基本的には my_configure(keymap)だけ呼んであとはスキップする
+デフォルト設定ファイルをできるだけ保存しておくためにこのようにしている
+"""
 def configure(keymap):
 
     # --------------------------------------------------------------------
@@ -314,7 +320,6 @@ def configure(keymap):
 
     # My Definition
     if 1:   # limited mode and cursor mode (vim like) move with IJKL
-
         my_configure(keymap)
 
         
