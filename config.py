@@ -6,8 +6,6 @@ import pyauto
 from keyhac import *
 
 """
-settings of keyhac
-
 keyhac の設定ファイル
 
 問題点
@@ -18,10 +16,10 @@ keyhac の設定ファイル
 """
 
 """
-This is a class to control the dynamic keymap mode.
-dynamic keymap is available by using the argument "check_func" in "keymap.defineWindowKeymap(...)"
-This class is a static class.
-The Static member "flag_window" contains the dynamic mode status.
+動的なキーマップを制御するためのクラス
+keymap.defineWindowKeymap(...) の引数 check_func を偽装することにより動的キーマップを実現する
+本クラスは静的クラスである
+本クラスは静的メンバ flag_window により動的なキーマップモードを保持している
 """
 class WindowmodeManager:
     window_limited=0
@@ -60,8 +58,8 @@ class WindowmodeManager:
 
 
 """
-This is a class to define keyboard macros.
-Under trial stage
+このクラスはキーボードマクロを制御するためのクラス
+試作段階
 """
 class MyMacro:
 
@@ -108,14 +106,15 @@ class MyMacro:
 
 
 """
-This is a class to set settings of keymap
-
-This class has the reference of keymap class
+このクラスはキーマップを設定するためのクラス
+内部に keymap クラスの参照を保持する
 """
 class KeymapManager:
     
     """
-    construct keymap manager
+    コンストラクタ
+    本クラスはコンストラクタで keymap の設定を行う
+    構築時には keymap の設定は終了している
     """
     def __init__(self,keymap_):
         self.keymap=keymap_
@@ -131,8 +130,9 @@ class KeymapManager:
         self.keymap_emacs=self.make_keymap_emacs()
         self.keymap_test=self.make_keymap_test()
 
-    
-    # functions to switch mode using self.keymap and WindowmodeManager
+    """
+    keymap で割り当てるための便利関数
+    """
 
     # IME ON
     def set_ime_on(self):
@@ -142,21 +142,22 @@ class KeymapManager:
     def set_ime_off(self):
         self.keymap.wnd.setImeStatus(0)
     
-    # change keymap mode to keymap_limited
+
+    """
+    WindowmodeManager を用いたキーマップのモード切替を行うクラス群
+    """
+    
     def set_keymap_limited(self):
         WindowmodeManager.set_window_limited()
         self.keymap.updateKeymap()
 
-    # change keymap mode to keymap_cursor
     def set_keymap_cursor(self):
         WindowmodeManager.set_window_cursor()
         self.keymap.updateKeymap()
 
-    # change keymap mode to keymap_test
     def set_keymap_test(self):
         WindowmodeManager.set_window_test()
         self.keymap.updateKeymap()
-
 
     def set_keymap_limited_and_ime_on(self):
         self.set_keymap_limited()
@@ -166,21 +167,15 @@ class KeymapManager:
         self.set_keymap_limited()
         self.set_ime_off()
 
-    """
-    define functions to generate some keymap mode
-    """
 
     """
-    settings of global keymap. no change.
+    各キーマップを生成して返す関数群
     """
+
     def make_keymap_global(self):
         return self.keymap.defineWindowKeymap()
 
 
-
-    """
-    settings of limited mode
-    """
     def make_keymap_limited(self):
         keymap_limited = self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_limited)
         
