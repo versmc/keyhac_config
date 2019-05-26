@@ -19,6 +19,7 @@ keyhac の設定ファイル
 
 """
 This is a class to control the dynamic keymap mode.
+dynamic keymap is available by using the argument "check_func" in "keymap.defineWindowKeymap(...)"
 This class is a static class.
 The Static member "flag_window" contains the dynamic mode status.
 """
