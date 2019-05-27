@@ -27,19 +27,37 @@ class WindowmodeManager:
     window_test=2
     flag_window=window_limited  # keymap mode flag
 
+
+    """
+    window のキーバインドモードフラグを limited に変更する
+    この関数ではフラグを変更するのみであり、キーマップ自体は変更しない
+    """
     @classmethod
     def set_window_limited(cls):
         cls.flag_window=cls.window_limited
     
+    
+    """
+    window のキーバインドモードフラグを cursor に変更する
+    この関数ではフラグを変更するのみであり、キーマップ自体は変更しない
+    """    
     @classmethod
     def set_window_cursor(cls):
         cls.flag_window=cls.window_cursor
 
+    """
+    window のキーバインドモードフラグを test に変更する
+    この関数ではフラグを変更するのみであり、キーマップ自体は変更しない
+    """    
     @classmethod
     def set_window_test(cls):
         cls.flag_window=cls.window_test
 
-
+    """
+    window のキーバインドモードフラグを確認する関数群
+    keymap.defineWindowKeymap の引数 check_func に指定することにより
+    動的キー割り当てを実現するために使う
+    """    
     @classmethod
     def window_is_limited(cls,window):
         return cls.flag_window==cls.window_limited
@@ -145,6 +163,7 @@ class KeymapManager:
 
     """
     WindowmodeManager を用いたキーマップのモード切替を行うクラス群
+    WindowmodeManager の持つフラグを変更し、キーバインドをアップデートする
     """
     
     def set_keymap_limited(self):
@@ -177,6 +196,7 @@ class KeymapManager:
 
 
     def make_keymap_limited(self):
+        # check_func に limited モードかどうかを判定する関数を指定することで動的キー割り当てを実現している
         keymap_limited = self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_limited)
         
         # settings to change mode
@@ -205,6 +225,7 @@ class KeymapManager:
         return keymap_limited
                 
     def make_keymap_cursor(self):
+        # check_func に cursor モードかどうかを判定する関数を指定することで動的キー割り当てを実現している
         keymap_cursor = self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_cursor)
 
         # settings of keymap_cursor
@@ -242,12 +263,15 @@ class KeymapManager:
         return keymap_cursor
         
     def make_keymap_emacs(self):
-        # settings of keymap_emacs
-        # emacs においても windows のキーバインドで操作するための設定
-        # emacs において LCtrl によるコマンドを windows のもので置き換える
-        # 現在、レジストリによって CapsLock を RCtrl に変えているため CapsLock により emacs におけるコマンドの Ctrl を代用する
-        # 代わりに LCtrl による操作では windows のコマンドをエミュレートする
-        
+        """
+        emacs モードの設定
+        emacs においても windows のキーバインドで操作するための設定
+        emacs において LCtrl によるコマンドを windows のもので置き換える
+        現在、レジストリによって CapsLock を RCtrl に変えているため CapsLock により emacs におけるコマンドの Ctrl を代用する
+        代わりに LCtrl による操作では windows のコマンドをエミュレートする
+        思いついたときに加えていく方針
+        """
+
         keymap_emacs=self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_emacs)
 
         keymap_emacs["LC-a"]="C-x","h"          # select all
@@ -262,6 +286,10 @@ class KeymapManager:
         return keymap_emacs
 
     def make_keymap_test(self):
+        """
+        テスト用キーマップモード
+        現在はキーボードマクロのテストを実装している
+        """
         keymap_test=self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_test)
 
         keymap_test["S-(241)"]=self.set_keymap_limited_and_ime_on  #Shift - katakana/hiragana/romaji
@@ -279,7 +307,7 @@ class KeymapManager:
 
 
 
-"""
+"""いい
 自分用の設定
 """
 def my_configure(keymap):
