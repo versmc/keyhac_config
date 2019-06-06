@@ -302,7 +302,42 @@ class KeymapManager:
             my_macro=MyMacro(self.keymap)
             keymap_test["U1-q"]=my_macro.abcde_delay  # 意図したとおり動くが time stamp inversion のメッセージが出る
             # keymap_limited["U1-p"]=my_macro.abcde_raw  # 意図したとおり動かない
+
+        # デフォルト定義されているコマンドの置き換え
+        if 1:
+            # USER0-Up/Down/Left/Right : Move active window by 10 pixel unit
+            keymap_test[ "U1-Left"  ] = self.keymap.MoveWindowCommand( -10, 0 )
+            keymap_test[ "U1-Right" ] = self.keymap.MoveWindowCommand( +10, 0 )
+            keymap_test[ "U1-Up"    ] = self.keymap.MoveWindowCommand( 0, -10 )
+            keymap_test[ "U1-Down"  ] = self.keymap.MoveWindowCommand( 0, +10 )
+
+            # USER0-Shift-Up/Down/Left/Right : Move active window by 1 pixel unit
+            keymap_test[ "U1-S-Left"  ] = self.keymap.MoveWindowCommand( -1, 0 )
+            keymap_test[ "U1-S-Right" ] = self.keymap.MoveWindowCommand( +1, 0 )
+            keymap_test[ "U1-S-Up"    ] = self.keymap.MoveWindowCommand( 0, -1 )
+            keymap_test[ "U1-S-Down"  ] = self.keymap.MoveWindowCommand( 0, +1 )
+
+            # USER0-Ctrl-Up/Down/Left/Right : Move active window to screen edges
+            keymap_test[ "U1-C-Left"  ] = self.keymap.MoveWindowToMonitorEdgeCommand(0)
+            keymap_test[ "U1-C-Right" ] = self.keymap.MoveWindowToMonitorEdgeCommand(2)
+            keymap_test[ "U1-C-Up"    ] = self.keymap.MoveWindowToMonitorEdgeCommand(1)
+            keymap_test[ "U1-C-Down"  ] = self.keymap.MoveWindowToMonitorEdgeCommand(3)
+
+            # Clipboard history related
+            keymap_test[ "C-S-Z"   ] = self.keymap.command_ClipboardList     # Open the clipboard history list
+            keymap_test[ "C-S-X"   ] = self.keymap.command_ClipboardRotate   # Move the most recent history to tail
+            keymap_test[ "C-S-A-X" ] = self.keymap.command_ClipboardRemove   # Remove the most recent history
+            self.keymap.quote_mark = "> "                                    # Mark for quote pasting
+
+            # Keyboard macro
+            keymap_test[ "U1-0" ] = self.keymap.command_RecordToggle
+            keymap_test[ "U1-1" ] = self.keymap.command_RecordStart
+            keymap_test[ "U1-2" ] = self.keymap.command_RecordStop
+            keymap_test[ "U1-3" ] = self.keymap.command_RecordPlay
+            keymap_test[ "U1-4" ] = self.keymap.command_RecordClear
+
         return keymap_test
+
 
 
 
