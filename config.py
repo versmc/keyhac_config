@@ -243,20 +243,19 @@ class KeymapManager:
         keymap_cursor["O-g"]="RButton"
         
         for any in ("", "S-", "C-", "C-S-", "A-", "A-S-", "A-C-", "A-C-S-", "W-", "W-S-", "W-C-", "W-C-S-", "W-A-", "W-A-S-", "W-A-C-", "W-A-C-S-"):
+            keymap_cursor[any+"i"]=any+"Up"
             keymap_cursor[any+"j"]=any+"Left"
             keymap_cursor[any+"k"]=any+"Down"
-            keymap_cursor[any+"i"]=any+"Up"
             keymap_cursor[any+"l"]=any+"Right"
-            keymap_cursor[any+"j"]=any+"Left"
-            keymap_cursor[any+"k"]=any+"Down" 
-            keymap_cursor[any+"i"]=any+"Up"
-            keymap_cursor[any+"l"]=any+"Right"
+
             keymap_cursor[any+"u"]=any+"Home"
             keymap_cursor[any+"o"]=any+"End"
+
             keymap_cursor[any+"U2-j"]=any+"Home"
             keymap_cursor[any+"U2-k"]=any+"PageDown"
             keymap_cursor[any+"U2-i"]=any+"PageUp"
             keymap_cursor[any+"U2-l"]=any+"End"
+            
             keymap_cursor[any+"n"]=any+"Enter"
             keymap_cursor[any+"m"]=any+"Tab"
         
@@ -267,8 +266,10 @@ class KeymapManager:
         emacs モードの設定
         emacs においても windows のキーバインドで操作するための設定
         emacs において LCtrl によるコマンドを windows のもので置き換える
-        現在、レジストリによって CapsLock を RCtrl に変えているため CapsLock により emacs におけるコマンドの Ctrl を代用する
-        代わりに LCtrl による操作では windows のコマンドをエミュレートする
+
+        現在、レジストリによって CapsLock を RCtrl に変えているため emacs 本来のCtrl の役割は CapsLock キーにより利用する
+        代わりに LCtrl による操作では windows のショートカットをエミュレートする
+        
         思いついたときに加えていく方針
         """
 
@@ -307,7 +308,7 @@ class KeymapManager:
 
 
 
-"""いい
+"""
 自分用の設定
 """
 def my_configure(keymap):
