@@ -24,7 +24,8 @@ keymap.defineWindowKeymap(...) の引数 check_func を適当に設定するこ�
 class WindowmodeManager:
     window_limited=0
     window_cursor=1
-    window_test=2
+    window_celeste=2
+    window_test=3
     flag_window=window_limited  # keymap mode flag
 
 
@@ -44,6 +45,15 @@ class WindowmodeManager:
     @classmethod
     def set_window_cursor(cls):
         cls.flag_window=cls.window_cursor
+    
+
+    """
+    window のキーバインドモードフラグを celeste に変更する
+    この関数ではフラグを変更するのみであり、キーマップ自体は変更しない
+    """    
+    @classmethod
+    def set_window_celeste(cls):
+        cls.flag_window=cls.window_celeste
 
     """
     window のキーバインドモードフラグを test に変更する
@@ -65,6 +75,10 @@ class WindowmodeManager:
     @classmethod
     def window_is_cursor(cls,window):
         return cls.flag_window==cls.window_cursor
+    
+    @classmethod
+    def window_is_celeste(cls,window):
+        return cls.flag_window==cls.window_celeste
     
     @classmethod
     def window_is_emacs(cls,window):
@@ -145,6 +159,7 @@ class KeymapManager:
         self.keymap_global=self.make_keymap_global()
         self.keymap_limited=self.make_keymap_limited()
         self.keymap_cursor=self.make_keymap_cursor()
+        self.keymap_celeste=self.make_keymap_celeste()
         self.keymap_emacs=self.make_keymap_emacs()
         self.keymap_test=self.make_keymap_test()
 
@@ -172,6 +187,10 @@ class KeymapManager:
 
     def set_keymap_cursor(self):
         WindowmodeManager.set_window_cursor()
+        self.keymap.updateKeymap()
+    
+    def set_keymap_celeste(self):
+        WindowmodeManager.set_window_celeste()
         self.keymap.updateKeymap()
 
     def set_keymap_test(self):
@@ -201,6 +220,7 @@ class KeymapManager:
         
         # settings to change mode
         keymap_limited["U1-c"]=self.set_keymap_cursor    # muhenkan - c
+        keymap_limited["U1-q"]=self.set_keymap_celeste   # muhenkan - q
         keymap_limited["U1-t"]=self.set_keymap_test      # muhenkan - t
 
         # settings of some shortcuts
@@ -233,6 +253,9 @@ class KeymapManager:
         keymap_cursor["S-(241)"]=self.set_keymap_limited_and_ime_on  #Shift - katakana/hiragana/romaji
         keymap_cursor["S-(28)"]=self.set_keymap_limited_and_ime_off  #Shift - henkan
         keymap_cursor["(28)"]=self.set_keymap_limited                #henkan
+        keymap_cursor["U1-q"]=self.set_keymap_celeste               # muhenkan - q
+
+
         keymap_cursor["Alt-X"]="Alt-Tab"
         keymap_cursor["x"]="Delete"
         keymap_cursor["S-x"]="Back"
@@ -260,7 +283,24 @@ class KeymapManager:
             keymap_cursor[any+"m"]=any+"Tab"
         
         return keymap_cursor
-        
+
+    def make_keymap_celeste(self):
+        # check_func に cursor モードかどうかを判定する関数を指定することで動的キー割り当てを実現している
+        keymap_celeste = self.keymap.defineWindowKeymap(check_func=WindowmodeManager.window_is_celeste)
+
+        # キーの誤爆を防ぐための最小限の設定だけする
+        keymap_celeste["U1-c"]=self.set_keymap_cursor    # muhenkan - c
+        keymap_celeste["U1-q"]=self.set_keymap_celeste   # muhenkan - q
+        keymap_celeste["U1-t"]=self.set_keymap_test      # muhenkan - t
+        keymap_celeste["S-(241)"]=self.set_keymap_limited_and_ime_on  #Shift - katakana/hiragana/romaji
+        keymap_celeste["S-(28)"]=self.set_keymap_limited_and_ime_off  #Shift - henkan
+        keymap_celeste["U1-q"]=self.set_keymap_celeste               # muhenkan - q
+
+        # settings of keymap_celeste
+        # 何も設定しない
+        return keymap_celeste
+  
+
     def make_keymap_emacs(self):
         """
         emacs モードの設定
