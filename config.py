@@ -241,7 +241,13 @@ class KeymapManager:
             keymap_limited[any+"U1-Semicolon"]=any+"End"
             keymap_limited[any+"U1-n"]=any+"Enter"
             keymap_limited[any+"U1-m"]=any+"Tab"
+
+            for i in range(1,12+1):
+                keymap_limited[any+"U1-"+str(i)]=any+"F"+str(i)
+
+
         
+
         return keymap_limited
                 
     def make_keymap_cursor(self):
