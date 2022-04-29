@@ -223,6 +223,22 @@ class KeymapManager:
         keymap_limited["U1-q"]=self.set_keymap_celeste   # muhenkan - q
         keymap_limited["U1-t"]=self.set_keymap_test      # muhenkan - t
 
+        # settings for IME ON/OFF
+        # IMEの設定を無変換キーとの組み合わせで実行するための設定 
+        #  
+        # これまで、IMEのON/OFFはIME側の設定で以下のように割り当てていた
+        #   Shift+muhenkan -> IME OFF
+        #   Shift+henkan   -> IME ON
+        # しかし、この設定には次の問題点がある
+        # 1. 既存のIMEの設定を上書きすることになる
+        # 2. キーの設定がkeyhacとIMEとに分かれてしまう
+        # そこでkeyhac の U1キーとの組み合わせで操作するようにした
+
+        keymap_limited["U1-(28)"]=self.set_ime_off  # muhenkan - henkan
+        #keymap_limited["U1-(240)"]=self.set_ime_on  # muhenkan - hiragana (When IME is OFF?) この設定はなくても動作している。細かい仕様は調査が必要
+        keymap_limited["U1-(242)"]=self.set_ime_on  # muhenkan - hiragana (When IME is ON?)
+
+
         # settings of some shortcuts
         keymap_limited["A-z"]="A-Tab"
         keymap_limited["A-S-z"]="A-S-Tab"
@@ -244,6 +260,11 @@ class KeymapManager:
 
             for i in range(1,12+1):
                 keymap_limited[any+"U1-"+str(i)]=any+"F"+str(i)
+        
+        
+
+        
+        
 
 
         
@@ -256,6 +277,12 @@ class KeymapManager:
 
         # settings of keymap_cursor
         # カーソルモード ijkl による移動などが楽になる 最近あまり使わない
+
+        # settings to change mode and IME
+        keymap_cursor["U1-(28)"]=self.set_keymap_limited_and_ime_off  # muhenkan - henkan
+        #keymap_cursor["U1-(240)"]=self.set_keymap_limited_and_ime_on  # muhenkan - hiragana (When IME is OFF?) この設定はなくても動作している。細かい仕様は調査が必要
+        keymap_cursor["U1-(242)"]=self.set_keymap_limited_and_ime_on  # muhenkan - hiragana (When IME is ON?)
+        
         keymap_cursor["S-(241)"]=self.set_keymap_limited_and_ime_on  #Shift - katakana/hiragana/romaji
         keymap_cursor["S-(28)"]=self.set_keymap_limited_and_ime_off  #Shift - henkan
         keymap_cursor["(28)"]=self.set_keymap_limited                #henkan
@@ -301,6 +328,10 @@ class KeymapManager:
         keymap_celeste["S-(241)"]=self.set_keymap_limited_and_ime_on  #Shift - katakana/hiragana/romaji
         keymap_celeste["S-(28)"]=self.set_keymap_limited_and_ime_off  #Shift - henkan
         keymap_celeste["U1-q"]=self.set_keymap_celeste               # muhenkan - q
+        # settings to change mode and IME
+        keymap_celeste["U1-(28)"]=self.set_keymap_limited_and_ime_off  # muhenkan - henkan
+        #keymap_celeste["U1-(240)"]=self.set_keymap_limited_and_ime_on  # muhenkan - hiragana (When IME is OFF?) この設定はなくても動作している。細かい仕様は調査が必要
+        keymap_celeste["U1-(242)"]=self.set_keymap_limited_and_ime_on  # muhenkan - hiragana (When IME is ON?)
 
         # settings of keymap_celeste
         # 何も設定しない
