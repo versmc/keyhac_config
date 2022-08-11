@@ -1,4 +1,18 @@
-﻿
+﻿"""
+# Config file for [keyhac](https://sites.google.com/site/craftware/keyhac-en?authuser=0)
+
+This scripts are derived from the default config.py in [keyhac](https://sites.google.com/site/craftware/keyhac-en?authuser=0).
+
+## features
+
+- Dynamic keybind
+- Cursor movement with ijkl and so on.
+
+
+## TODO
+1. "time inversion" message is given by keyboard macro 
+
+"""
 
 import sys
 import os
@@ -7,22 +21,6 @@ import time
 import pyauto
 from keyhac import *
 
-"""
-keyhac の設定ファイル
-
-問題点
-1. 特に致命的なものは確認していない
-2. キーボードマクロの動作で time inversion のメッセージが出る
-3. とりあえずオブジェクティブなコードにしたが、密結合なのでなんとかしたい
-4. IME の設定とか無変換キーを使った設定とかあるので日本語でいいのではないか
-"""
-
-"""
-動的なキーマップを制御するためのクラス
-keymap.defineWindowKeymap(...) の引数 check_func を適当に設定することにより動的キーマップを実現する
-本クラスは静的クラスである
-本クラスは静的メンバ flag_window により動的なキーマップモードを保持している
-"""
 
 
 
@@ -328,10 +326,19 @@ class KeymapConfig:
 
     @classmethod
     def set_keymap(cls, keymap):
+        
+        # Editor
+        keymap.editor = "C:\Program Files\Microsoft VS Code\Code.exe"
+        
+        # Font
+        keymap.setFont( "MS Gothic", 12 )
 
-        # define modifier
+        # Theme
+        keymap.setTheme("black")
+
+        # Define modifier
         keymap.defineModifier(29,"User1")       #assign "muhenkan(無変換)" "User1"
-        keymap.defineModifier("Slash","User2")  #assign "/" "User2"
+        keymap.defineModifier("Slash","User2")  #assign "Slash(/)" "User2"
 
         # Dynamic keymap configureation is realized by `checkfunc = {function to get current mode}`
         
@@ -353,61 +360,43 @@ class KeymapConfig:
 
 
 
-        
-
-
-
-
-
-
-
-"""
-自分用の設定
-"""
-def my_configure(keymap):
-    KeymapConfig.set_keymap(keymap)
-    
-
-
-
-"""
-設定
-基本的には my_configure(keymap)だけ呼んであとはスキップする
-デフォルト設定ファイルをできるだけ保存しておくためにこのようにしている
-"""
 def configure(keymap):
-
-    # --------------------------------------------------------------------
-    # Text editer setting for editting config.py file
-
-    # Setting with program file path (Simple usage)
-    if 1:
-        keymap.editor = "C:\Program Files\Microsoft VS Code\Code.exe"
-
-    # Setting with callable object (Advanced usage)
-    if 0:
-        def editor(path):
-            shellExecute( None, "notepad.exe", '"%s"'% path, "" )
-        keymap.editor = editor
-
-    # --------------------------------------------------------------------
-    # Customizing the display
-
-    # Font
-    keymap.setFont( "MS Gothic", 12 )
-
-    # Theme
-    keymap.setTheme("black")
-
-    # --------------------------------------------------------------------
+    """Function called to set settings for keymap. 
+    """
 
     # My definition
-    if 1:   # limited mode and cursor mode (vim like) move with IJKL
-        my_configure(keymap)
+    if 1:   # limited mode and cursor mode (vim-like), move with IJKL
+        KeymapConfig.set_keymap(keymap)
+
+
+    # Original definitions (skipped)
+    if 0:
+        # --------------------------------------------------------------------
+        # Text editer setting for editting config.py file
+
+        # Setting with program file path (Simple usage)
+        if 1:
+            keymap.editor = "C:\Program Files\Microsoft VS Code\Code.exe"
+
+        # Setting with callable object (Advanced usage)
+        if 0:
+            def editor(path):
+                shellExecute( None, "notepad.exe", '"%s"'% path, "" )
+            keymap.editor = editor
+
+        # --------------------------------------------------------------------
+        # Customizing the display
+
+        # Font
+        keymap.setFont( "MS Gothic", 12 )
+
+        # Theme
+        keymap.setTheme("black")
+
+        # --------------------------------------------------------------------
 
         
-    # Original definitions 
-    if 0:
+    
         # Simple key replacement
 
         # User modifier key definition
