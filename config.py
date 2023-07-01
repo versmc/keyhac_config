@@ -27,7 +27,7 @@ from keyhac import *
 
     
 class KeymapConfig:
-    """This class provide the function to set keymap as `set_keymap(keymap)`. This class is a static class.
+    """This class provide the function to set keymap as `configureKeymap(keymap)`. This class is a static class.
     
     Notably, in this class, dynamic keymap is realized by `keymap.defineWindowKeymap(checkfunc = {function to get current mode})`.
     `{function to get current mode}` is provided by KeymapMode class. 
@@ -68,8 +68,9 @@ class KeymapConfig:
             cls._mode = cls._TEST
         
 
-        # Methods to get current mode. `dummy_window` is introduced for `keyfunc` for `keymap.defineWindowKeymap(keyfunc=hogehoge)`.
-
+        # The following classmethods are used to get the current mode. 
+        # The argument `dummy_window` is required to specify these classmethods as argument `keyfunc` of `keymap.defineWindowKeymap(keyfunc)`. 
+        
         @classmethod
         def isLimited(cls,dummy_window=None):
             return cls._mode == cls._LIMITED
@@ -104,7 +105,7 @@ class KeymapConfig:
         keymap.defineModifier("Slash","User2")  #assign "Slash(/)" "User2"
 
 
-        # Functions to change WindowKeymap
+        # Functions to change WindowKeymap.
         # In `keymap.updateKeymap()`, `WindowKeymap`s such as `windowKeymapLimited` (which will be defined later in this function) are activated or deactivated
         # through the `check_func` which will be substituted in `keymap.defineWindowKeymap(check_func=...)`.
         
@@ -125,7 +126,7 @@ class KeymapConfig:
             keymap.updateKeymap()
 
 
-        # IME-ON/OFF Functions
+        # Functions for IME-ON/OFF 
 
         def enable_ime():
             keymap.wnd.setImeStatus(1)
@@ -145,6 +146,36 @@ class KeymapConfig:
             disable_ime()
 
 
+        # Functions to move mouse
+
+        def mouseMoveRel(dx,dy):
+            x, y = pyauto.Input.getCursorPos()
+            keymap.beginInput()
+            keymap.input_seq.append(pyauto.MouseMove(int(x+dx), int(y+dy)))
+            keymap.endInput()
+        
+        def closureMouseRelInterp(dt,num_interp):
+            t=[time.time()]     # クロージャのために要素数1の List とする
+            def mouseRelInterp(dx,dy):
+                current_t=time.time()
+                if current_t <t[0]+dt:
+                    return
+                else:
+                    x, y = pyauto.Input.getCursorPos()
+                    t[0]=time.time()
+                    ddx=dx/num_interp
+                    ddy=dy/num_interp
+                    ddt=dt/num_interp
+                    for _ in range(num_interp):
+                        x+=ddx
+                        y+=ddy
+                        keymap.beginInput()
+                        keymap.input_seq.append(pyauto.MouseMove(int(x), int(y)))
+                        keymap.endInput()
+                        time.sleep(ddt)
+                    t[0]=current_t+dt
+            return mouseRelInterp
+            
         
         if 1:   # define `windowKeymapGlobal` 
             
@@ -197,6 +228,32 @@ class KeymapConfig:
                 # F-N -> FN
                 for i in range(1,12+1):
                     windowKeymapLimited[any+"U1-"+str(i)]=any+"F"+str(i)
+            
+            # override U1-A-(I|J|K|L) to move mouse cursor
+            if 1:
+                
+                normal_mouse_speed=80
+                dash_mouse_speed=320
+                sneak_mouse_speed=10
+                num_interp=2
+                dt=1.0/60
+                moveRelInterp=closureMouseRelInterp(dt=dt,num_interp=num_interp)
+
+                windowKeymapLimited["U1-A-I"]=lambda : moveRelInterp(dx=0,dy=-normal_mouse_speed)
+                windowKeymapLimited["U1-A-K"]=lambda : moveRelInterp(dx=0,dy=+normal_mouse_speed)
+                windowKeymapLimited["U1-A-J"]=lambda : moveRelInterp(dx=-normal_mouse_speed,dy=0)
+                windowKeymapLimited["U1-A-L"]=lambda : moveRelInterp(dx=+normal_mouse_speed,dy=0)
+
+                windowKeymapLimited["U1-C-A-I"]=lambda : moveRelInterp(dx=0,dy=-dash_mouse_speed)
+                windowKeymapLimited["U1-C-A-K"]=lambda : moveRelInterp(dx=0,dy=+dash_mouse_speed)
+                windowKeymapLimited["U1-C-A-J"]=lambda : moveRelInterp(dx=-dash_mouse_speed,dy=0)
+                windowKeymapLimited["U1-C-A-L"]=lambda : moveRelInterp(dx=+dash_mouse_speed,dy=0)
+
+                windowKeymapLimited["U1-S-A-I"]=lambda : moveRelInterp(dx=0,dy=-sneak_mouse_speed)
+                windowKeymapLimited["U1-S-A-K"]=lambda : moveRelInterp(dx=0,dy=+sneak_mouse_speed)
+                windowKeymapLimited["U1-S-A-J"]=lambda : moveRelInterp(dx=-sneak_mouse_speed,dy=0)
+                windowKeymapLimited["U1-S-A-L"]=lambda : moveRelInterp(dx=+sneak_mouse_speed,dy=0)
+                
 
 
         if 1:   # define `windowKeymapCursor`
@@ -251,7 +308,7 @@ class KeymapConfig:
             
             
             # マクロテスト
-            if 1:         
+            if 0:         
                 
                 """
                 keymap を通して "abcde" と 0.5 sec おきに入力する関数
@@ -294,7 +351,7 @@ class KeymapConfig:
                 # window_keymap["U1-p"]=abcde_raw  # 意図したとおり動かない
 
             # デフォルト定義されているコマンドの置き換え
-            if 1:
+            if 0:
                 # USER0-Up/Down/Left/Right : Move active window by 10 pixel unit
                 windowKeymapTest[ "U1-Left"  ] = keymap.MoveWindowCommand( -10, 0 )
                 windowKeymapTest[ "U1-Right" ] = keymap.MoveWindowCommand( +10, 0 )
@@ -326,6 +383,33 @@ class KeymapConfig:
                 windowKeymapTest[ "U1-3" ] = keymap.command_RecordPlay
                 windowKeymapTest[ "U1-4" ] = keymap.command_RecordClear
 
+
+            # シンプルなマウスカーソルの移動をやってみる
+            if 0:
+                def mouseMoveRel(dx,dy):
+                    x, y = pyauto.Input.getCursorPos()
+                    keymap.beginInput()
+                    keymap.input_seq.append(pyauto.MouseMove(x+dx, y+dy))
+                    keymap.endInput()
+
+                
+                normal_mouse_speed=20
+                windowKeymapTest["U1-A-I"]=lambda : mouseMoveRel(dx=0,dy=-normal_mouse_speed)
+                windowKeymapTest["U1-A-J"]=lambda : mouseMoveRel(dx=-normal_mouse_speed,dy=0)
+                windowKeymapTest["U1-A-K"]=lambda : mouseMoveRel(dx=0,dy=normal_mouse_speed)
+                windowKeymapTest["U1-A-L"]=lambda : mouseMoveRel(dx=normal_mouse_speed,dy=0)
+
+                dash_mouse_speed=240
+                windowKeymapTest["U1-S-A-I"]=lambda : mouseMoveRel(dx=0,dy=-dash_mouse_speed)
+                windowKeymapTest["U1-S-A-J"]=lambda : mouseMoveRel(dx=-dash_mouse_speed,dy=0)
+                windowKeymapTest["U1-S-A-K"]=lambda : mouseMoveRel(dx=0,dy=dash_mouse_speed)
+                windowKeymapTest["U1-S-A-L"]=lambda : mouseMoveRel(dx=dash_mouse_speed,dy=0)
+            
+
+
+
+
+                    
 
 
 
