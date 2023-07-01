@@ -5,5 +5,7 @@ This scripts are derived from the default config.py in [keyhac](https://sites.go
 ## features
 
 - Dynamic keybind
-- Cursor movement with ijkl and so on.
+- Cursor movement with modefier + ijkl.
+- Mouse movement with modefier + ijkl.
+
 
