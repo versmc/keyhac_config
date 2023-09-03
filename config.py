@@ -17,10 +17,13 @@ This scripts are derived from the default config.py in [keyhac](https://sites.go
 import sys
 import os
 import time
+import threading
+from enum import Enum
+from typing import Tuple, Dict, Any, Optional, Callable
 
 import pyauto
 from keyhac import *
-
+import ckit
 
 
 
@@ -195,6 +198,13 @@ class KeymapConfig:
             windowKeymapGlobal["S-(241)"]=change_window_keymap_limited_and_enable_ime  #Shift - katakana/hiragana/romaji
             windowKeymapGlobal["S-(28)"]=change_window_keymap_limited_and_disable_ime  #Shift - henkan
 
+            # S-U1- versions for IME ON / OFF for gathering mistyping
+            windowKeymapGlobal["S-U1-(241)"]=change_window_keymap_limited_and_enable_ime  #Shift - katakana/hiragana/romaji
+            windowKeymapGlobal["S-U1-(28)"]=change_window_keymap_limited_and_disable_ime  #Shift - henkan
+
+
+
+
             # oneshot Slash -> Slash
             for any in ("", "S-", "C-", "C-S-", "A-", "A-S-", "A-C-", "A-C-S-", "W-", "W-S-", "W-C-", "W-C-S-", "W-A-", "W-A-S-", "W-A-C-", "W-A-C-S-"):
                 windowKeymapGlobal[any+"O-Slash"]=any+"Slash"
@@ -254,7 +264,6 @@ class KeymapConfig:
                 windowKeymapLimited["U1-S-A-J"]=lambda : moveRelInterp(dx=-sneak_mouse_speed,dy=0)
                 windowKeymapLimited["U1-S-A-L"]=lambda : moveRelInterp(dx=+sneak_mouse_speed,dy=0)
                 
-
 
         if 1:   # define `windowKeymapCursor`
 
@@ -405,7 +414,509 @@ class KeymapConfig:
                 windowKeymapTest["U1-S-A-K"]=lambda : mouseMoveRel(dx=0,dy=dash_mouse_speed)
                 windowKeymapTest["U1-S-A-L"]=lambda : mouseMoveRel(dx=dash_mouse_speed,dy=0)
             
+            # ファイルリロードのテスト. 思ったように動作しない. おそらく一度読み込んだファイルがキャッシュされるので、編集が反映されない
+            if 0:
+                def reloadConfig():
+                    configfilepath=os.path.join(os.path.abspath("."),"config.py")
+                    print("reload config file: "+configfilepath)
+                    ret=ckit.ckit_userconfig.reloadConfigScript(configfilepath)
+                    print("hogehoge")
 
+                windowKeymapTest["U1-A-I"]=reloadConfig
+            
+            # マルチスレッドによる非同期処理の実験
+            if 0:
+                
+                class CounterState(Enum):
+                    """カウンターの状態を表す列挙型
+                    """
+
+                    STOP=0
+                    PAUSE=1
+                    INCREMENT=2
+                    DECREMENT=3
+
+
+                class CounterThread(threading.Thread):
+                    """
+                    シンプルなカウンターを動作させるスレッド.
+                    基本的に本クラスを直接使わず、シングルトンである `CounterController` を通じて利用する.
+                    スレッドが起動している間は、カウントの仕方を `.updateState(...)` を通じてコントロールできるようにしている
+
+                    - カウンターは `CounterState` の 4状態 [STOP, PAUSE, INCREMENT, DECREMENT] を持つ
+                    - これらの状態は .updateState(...) を通じて切り替わる.
+                    - これらの状態は .updateState(...) のタイミングと実際の動作の切り替わりのタイミングにはカウンター更新分の時間のズレが存在する
+                    - 明示的な切り替えの他に INCREMENT 状態, DECREMENT 状態は一定時間 `updateState()` が呼ばれないと PAUSE 状態に切り替わる
+                    - STOP 状態は特殊な状態であり、STOP状態に切り替わるとカウンター更新のインターバルの後にスレッドが非アクティブになる
+                    """
+                    
+                    DEFAULT_INITIAL_COUNT=0
+                    DEFAULT_TIMEOUT_PERIOD=10
+                    DEFAULT_INTERVAL=1.0
+
+                    def __init__(
+                        self,
+                        initial_count:int=DEFAULT_INITIAL_COUNT,
+                        timeout_period:int=DEFAULT_TIMEOUT_PERIOD,
+                        interval:float=DEFAULT_INTERVAL,
+                    ):
+                        super(self.__class__,self).__init__()
+                        
+                        self.count = initial_count
+                        self.timeout_period = timeout_period
+                        self.interval = interval
+
+                        self.event = threading.Event()
+                        self.state = CounterState.STOP
+                        self.timeout_count=0
+
+                        
+                    def run(self):
+                        print("counter start")
+                        self.state=CounterState.PAUSE
+                        while True:
+                            
+                            if self.timeout_count == self.timeout_period:
+                                self.updateState(CounterState.PAUSE)
+
+                            if self.state==CounterState.STOP:
+                                break
+                            elif self.state == CounterState.PAUSE:
+                                print("pause")
+                                self.event.clear()
+                                self.event.wait()
+                            elif self.state == CounterState.INCREMENT:
+                                self.count+=1
+                                self.timeout_count+=1
+                                time.sleep(self.interval)
+                                print("count: ",self.count)
+                            elif self.state == CounterState.DECREMENT:
+                                self.count-=1
+                                self.timeout_count+=1
+                                time.sleep(self.interval)
+                                print("count: ",self.count)
+                            else:
+                                RuntimeError("unexpected error")
+                        print("counter stop")
+
+                    
+                    def updateState(self,state:CounterState):
+                        self.state=state
+                        self.timeout_count=0
+                        if not self.event.is_set():
+                            self.event.set()
+                    
+
+                class CounterController:
+                    """
+                    カウンターのコントローラー. 
+                    `CounterThread` をラップしてシンプルなインターフェースにしている.
+                    シングルトン. 2回以上インスタンス化するとその時点でスレッド及びカウンターの状態が初期化される.
+                    """
+
+                    _instance = None
+                    _lock = threading.Lock()
+
+                    def __new__(cls):
+                        with cls._lock:
+                            if cls._instance is None:
+                                cls._instance = super().__new__(cls)
+
+                        return cls._instance
+
+                    def __init__(self):
+                        self._thread=CounterThread()
+                        self._thread.start()
+                    
+                    def updateState(self,state:CounterState):
+                        self._thread.updateState(state)
+                        if state==CounterState.STOP:
+                            self._thread.join()
+
+                    def is_alive(self)->bool:
+                        return self._thread.is_alive()
+
+
+                counter_controller=CounterController()
+                #windowKeymapTest["U1-A-Q"]=lambda : counter_controller.updateState(CounterState.STOP)
+                windowKeymapTest["U1-A-P"]=lambda : counter_controller.updateState(CounterState.PAUSE)
+                windowKeymapTest["U1-A-I"]=lambda : counter_controller.updateState(CounterState.INCREMENT)
+                windowKeymapTest["U1-A-D"]=lambda : counter_controller.updateState(CounterState.DECREMENT)
+            
+
+            # 非同期処理でマウスを動かす実験 速度が遅い 原因不明
+            if 1:
+                class MouseMovementState(Enum):
+                    """
+                    マウスの動きの状態を表す列挙型. 
+                    """
+
+                    QUIT=0
+
+                    NORMAL=1
+                    
+                    WALK_R=11
+                    WALK_L=12
+                    WALK_U=13
+                    WALK_D=14
+                    WALK_RU=21
+                    WALK_RD=22
+                    WALK_LU=23
+                    WALK_LD=24
+
+                    DASH_R=31
+                    DASH_L=32
+                    DASH_U=33
+                    DASH_D=34
+                    DASH_RU=41
+                    DASH_RD=42
+                    DASH_LU=43
+                    DASH_LD=44
+
+                    SNEAK_R=51
+                    SNEAK_L=52
+                    SNEAK_U=53
+                    SNEAK_D=54
+                    SNEAK_RU=61
+                    SNEAK_RD=62
+                    SNEAK_LU=63
+                    SNEAK_LD=64
+
+
+                class SimpleMouseMovementConfig(object):
+                    """
+                    `SimpleMouseMovementThread` におけるマウスの動きのコンフィグ
+                    """
+                    
+                    DEFAULT_WALK_SPEED=80
+                    DEFAULT_DASH_SPEED=320
+                    DEFAULT_SNEAK_SPEED=10
+                    DEFAULT_KEYBOAD_INTERVAL=1.0/60
+                    DEFAULT_TIMEOUT_PERIOD=5*60
+
+                    
+                    def __init__(
+                        self,
+                        walk_speed:int=DEFAULT_WALK_SPEED,
+                        dash_speed:int=DEFAULT_DASH_SPEED,
+                        sneak_speed:int=DEFAULT_SNEAK_SPEED,
+                        keyboard_interval:float=DEFAULT_KEYBOAD_INTERVAL,
+                        timeout_period:int=DEFAULT_TIMEOUT_PERIOD,
+                    ):
+                        self.walk_speed=walk_speed
+                        self.dash_speed=dash_speed
+                        self.sneak_speed=sneak_speed
+                        self.keyboard_interval=keyboard_interval
+                        self.timeout_period=timeout_period
+                    
+                    def to_dict(self)->Dict[str,Any]:
+                        return {
+                            "walk_speed": self.walk_speed,
+                            "dash_speed": self.dash_speed,
+                            "sneak_speed": self.sneak_speed,
+                            "keyboard_interval": self.keyboard_interval,
+                            "timeout_period": self.timeout_period,
+                        }
+
+                    def from_dict(cls,obj:Dict[str,Any])->"SimpleMouseMovementConfig":
+                        return SimpleMouseMovementConfig(
+                            walk_speed=obj["walk_speed"],
+                            dash_speed=obj["dash_speed"],
+                            sneak_speed=obj["sneak_speed"],
+                            keyboard_interval=obj["keyboard_interval"],
+                            timeout_period=obj["timeout_period"],
+                        )
+
+
+                class SimpleMouseMovementThread(threading.Thread):
+                    """
+                    マウスカーソルを動かすスレッド
+                    """
+
+
+                    @classmethod
+                    def generate_auto_drift_mouse_pos(
+                        cls,
+                        get_mouse_pos:Callable[[],Tuple[int,int]],
+                        set_mouse_pos:Callable[[Tuple[int,int]],None],
+                    )->Callable[[Tuple[int,int]],None]:
+                        """
+                        マウス動作で利用する関数 `drift_mouse_pos` を `get_mouse_pos` と `set_mouse_pos` から生成する関数. 
+                        コンストラクタで使われる
+
+                        Args:
+                            get_mouse_pos (Callable[[],Tuple[int,int]]): マウスカーソル位置を取得する関数
+                            set_mouse_pos (Callable[[Tuple[int,int]],None]): マウスカーソル位置を設定する関数
+
+                        Returns:
+                            Callable[[Tuple[int,int]],None]: マウスカーソル位置を相対値で移動する関数
+                        """
+
+                        def drift_mouse_pos(dx:int,dy:int):
+                            x,y=get_mouse_pos()
+                            x2,y2=x+dx,y+dy
+                            set_mouse_pos(x2,y2)
+                        return drift_mouse_pos
+
+
+                    def __init__(
+                        self,
+                        config:SimpleMouseMovementConfig,
+                        get_mouse_pos:Callable[[],Tuple[int,int]],
+                        set_mouse_pos:Callable[[Tuple[int,int]],None],
+                        drift_mouse_pos:Optional[Callable[[int,int],None]]=None,
+                        verbose:bool=False,
+                    ):
+                        """コンストラクタ
+
+                        Args:
+                            config (SimpleMouseMovementConfig): マウスの動作に関する設定.
+                            get_mouse_pos (Callable[[],Tuple[int,int]]): マウス位置を取得する関数.
+                            set_mouse_pos (Callable[[Tuple[int,int]],None]): マウス位置を設定する関数
+                            drift_mouse_pos (Optional[Callable[[int,int],None]], optional): マウス位置を相対位置で移動する関数. デフォルトは `None` であり、この場合は `get_mouse_pos` と `set_mouse_pos` をもとに適当に設定される.
+                            verbose (bool, optional): `True` のときマウス位置とマウスの動作状態を出力する. デフォルトは `False`.
+                        """
+                        super(self.__class__,self).__init__()
+
+                        self.config=config
+                        self.get_mouse_pos=get_mouse_pos
+                        self.set_mouse_pos=set_mouse_pos
+                        self.drift_mouse_pos=(
+                            drift_mouse_pos if drift_mouse_pos is not None
+                            else self.generate_auto_drift_mouse_pos(get_mouse_pos,set_mouse_pos)
+                        )
+
+                        
+                        self.verbose=verbose
+                                
+                        self.event = threading.Event()
+                        self.state = MouseMovementState.NORMAL
+                        self.timeout_count=0
+
+
+                    def log_position_if_verbose(self):
+                        if self.verbose:
+                            print("mouse pos: ",self.get_mouse_pos())        
+                    
+                    def log_state_if_verbose(self):
+                        if self.verbose:
+                            print("MouseMovementState: ",self.state)
+
+
+
+                    def getDrift(self)->Tuple[int,int]:
+                        """現在のマウスの動作の状態に応じたマウスの相対移動ベクトルを返す
+                        Returns:
+                            Tuple[int,int]: `(dx,dy)`
+                        """
+                                
+                        s=self.config.walk_speed
+                        if self.state == MouseMovementState.WALK_R:
+                            return +s,0
+                        elif self.state == MouseMovementState.WALK_L:
+                            return -s,0
+                        elif self.state == MouseMovementState.WALK_U:
+                            return 0,+s
+                        elif self.state == MouseMovementState.WALK_D:
+                            return 0,-s
+                        elif self.state == MouseMovementState.WALK_RU:
+                            return +s,+s
+                        elif self.state == MouseMovementState.WALK_RD:
+                            return +s,-s
+                        elif self.state == MouseMovementState.WALK_LU:
+                            return -s,+s
+                        elif self.state == MouseMovementState.WALK_LD:
+                            return -s,-s
+                        
+                        s=self.config.dash_speed
+                        if self.state == MouseMovementState.DASH_R:
+                            return +s,0
+                        elif self.state == MouseMovementState.DASH_L:
+                            return -s,0
+                        elif self.state == MouseMovementState.DASH_U:
+                            return 0,+s
+                        elif self.state == MouseMovementState.DASH_D:
+                            return 0,-s
+                        elif self.state == MouseMovementState.DASH_RU:
+                            return +s,+s
+                        elif self.state == MouseMovementState.DASH_RD:
+                            return +s,-s
+                        elif self.state == MouseMovementState.DASH_LU:
+                            return -s,+s
+                        elif self.state == MouseMovementState.DASH_LD:
+                            return -s,-s
+
+                        s=self.config.sneak_speed
+                        if self.state == MouseMovementState.SNEAK_R:
+                            return +s,0
+                        elif self.state == MouseMovementState.SNEAK_L:
+                            return -s,0
+                        elif self.state == MouseMovementState.SNEAK_U:
+                            return 0,+s
+                        elif self.state == MouseMovementState.SNEAK_D:
+                            return 0,-s
+                        elif self.state == MouseMovementState.SNEAK_RU:
+                            return +s,+s
+                        elif self.state == MouseMovementState.SNEAK_RD:
+                            return +s,-s
+                        elif self.state == MouseMovementState.SNEAK_LU:
+                            return -s,+s
+                        elif self.state == MouseMovementState.SNEAK_LD:
+                            return -s,-s
+                        
+                        else:
+                            raise RuntimeError("unexpected state")
+
+
+
+                    def run(self):
+                        self.updateState(MouseMovementState.NORMAL)
+
+                        while True:
+
+                            # 一定時間経過で自動的に通常状態に変化する
+                            if self.timeout_count == self.config.timeout_period:
+                                self.updateState(MouseMovementState.NORMAL)
+
+                            if self.state==MouseMovementState.QUIT:
+                                break
+                            elif self.state == MouseMovementState.NORMAL:
+                                self.event.clear()
+                                self.event.wait()
+                            elif self.state in [
+                                MouseMovementState.WALK_R,
+                                MouseMovementState.WALK_R,
+                                MouseMovementState.WALK_L,
+                                MouseMovementState.WALK_U,
+                                MouseMovementState.WALK_D,
+                                MouseMovementState.WALK_RU,
+                                MouseMovementState.WALK_RD,
+                                MouseMovementState.WALK_LU,
+                                MouseMovementState.WALK_LD,
+
+                                MouseMovementState.DASH_R,
+                                MouseMovementState.DASH_L,
+                                MouseMovementState.DASH_U,
+                                MouseMovementState.DASH_D,
+                                MouseMovementState.DASH_RU,
+                                MouseMovementState.DASH_RD,
+                                MouseMovementState.DASH_LU,
+                                MouseMovementState.DASH_LD,
+
+                                MouseMovementState.SNEAK_R,
+                                MouseMovementState.SNEAK_L,
+                                MouseMovementState.SNEAK_U,
+                                MouseMovementState.SNEAK_D,
+                                MouseMovementState.SNEAK_RU,
+                                MouseMovementState.SNEAK_RD,
+                                MouseMovementState.SNEAK_LU,
+                                MouseMovementState.SNEAK_LD,
+                            ]:
+                                self.timeout_count+=1
+                                dx,dy=self.getDrift()
+                                self.drift_mouse_pos(dx,dy)
+                                self.log_position_if_verbose()
+                                time.sleep(self.config.keyboard_interval)
+                            else:
+                                RuntimeError("unexpected error")
+                        
+
+                    
+                    def updateState(self,state:MouseMovementState):
+                        self.timeout_count=0
+                        if self.state != state:
+                            self.state=state    
+                            if not self.event.is_set():
+                                self.event.set()
+                            self.log_state_if_verbose()
+
+
+                class SimpleMouseMovementController:
+                    """
+                    マウスカーソルの移動のコントローラー. 
+                    `CounterThread` をラップしてシンプルなインターフェースにしている.
+                    シングルトン. 2回以上インスタンス化するとその時点でスレッド及びマウスの動作状態が初期化される.
+                    """
+
+                    _instance = None
+                    _lock = threading.Lock()
+
+                    def __new__(
+                        cls,
+                        config:SimpleMouseMovementConfig,
+                        get_mouse_pos:Callable[[],Tuple[int,int]],
+                        set_mouse_pos:Callable[[Tuple[int,int]],None],
+                        drift_mouse_pos:Optional[Callable[[int,int],None]]=None,
+                        verbose:bool=False,
+                    ):
+                        with cls._lock:
+                            if cls._instance is None:
+                                cls._instance = super().__new__(cls)
+
+                        return cls._instance
+
+                    def __init__(
+                        self,
+                        config:SimpleMouseMovementConfig,
+                        get_mouse_pos:Callable[[],Tuple[int,int]],
+                        set_mouse_pos:Callable[[Tuple[int,int]],None],
+                        drift_mouse_pos:Optional[Callable[[int,int],None]]=None,
+                        verbose:bool=False,
+                    ):
+                        self._thread=SimpleMouseMovementThread(
+                            config=config,
+                            get_mouse_pos=get_mouse_pos,
+                            set_mouse_pos=set_mouse_pos,
+                            drift_mouse_pos=drift_mouse_pos,
+                            verbose=verbose
+                        )
+                        self._thread.start()
+                    
+                    def updateState(self,state:MouseMovementState):
+                        self._thread.updateState(state)
+                        if state==MouseMovementState.QUIT:
+                            self._thread.join()
+
+                    def is_alive(self)->bool:
+                        return self._thread.is_alive()
+
+                    
+
+                mouse_movement_controller=SimpleMouseMovementController(
+                    config=SimpleMouseMovementConfig(
+                        walk_speed=80,
+                        dash_speed=320,
+                        sneak_speed=10,
+                        keyboard_interval=1.0/60,
+                        timeout_period=10*60,
+                    ),
+                    get_mouse_pos=pyauto.Input.getCursorPos,
+                    set_mouse_pos=lambda x,y: (
+                        keymap.beginInput(),
+                        keymap.input_seq.append(pyauto.MouseMove(int(x), int(y))),
+                        keymap.endInput(),
+                        None
+                    )[-1],
+                    verbose=True,
+                )
+
+                windowKeymapTest["D-U1-A-L"]=lambda : mouse_movement_controller.updateState(MouseMovementState.WALK_R)
+                #windowKeymapTest["U-U1-A-L"]=lambda : mouse_movement_controller.updateState(MouseMovementState.NORMAL)
+                windowKeymapTest["D-U1-A-J"]=lambda : mouse_movement_controller.updateState(MouseMovementState.WALK_L)
+                windowKeymapTest["U-U1-A-J"]=lambda : mouse_movement_controller.updateState(MouseMovementState.NORMAL)
+                windowKeymapTest["D-U1-A-I"]=lambda : mouse_movement_controller.updateState(MouseMovementState.WALK_D)
+                windowKeymapTest["U-U1-A-I"]=lambda : mouse_movement_controller.updateState(MouseMovementState.NORMAL)
+                windowKeymapTest["D-U1-A-K"]=lambda : mouse_movement_controller.updateState(MouseMovementState.WALK_U)
+                windowKeymapTest["U-U1-A-K"]=lambda : mouse_movement_controller.updateState(MouseMovementState.NORMAL)
+                
+                windowKeymapTest["U1-A-N"]=lambda : mouse_movement_controller.updateState(MouseMovementState.NORMAL)
+
+
+                
+                                
+                                
+
+                            
 
 
 
